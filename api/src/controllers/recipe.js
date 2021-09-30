@@ -2,92 +2,73 @@ const { Recipe, Diet } = require('../db')
 const { v4: uuidv4 } = require('uuid')
 const axios = require('axios')
 const { YOUR_API_KEY } = process.env;
-const { Sequelize } = require("sequelize")
+
 
 const getAll = async (req, res, next) => {
     let { name } = req.query
-    if (!name) {
-        try {
 
-            var result = (await axios.get(`https://api.spoonacular.com/recipes/complexSearch?apiKey=${YOUR_API_KEY}&addRecipeInformation=true&number=1`)).data
-            const result2 = await result.results.map((recipe) => {
-                return {
-                    name: recipe.title,
-                    ID: recipe.id,
-                    diets: recipe.diets.map((diet) => { return { name: diet } }),
-                    resumen: recipe.summary,
-                    scrore: parseInt(recipe.spoonacularScore),
-                    healing: recipe.healthScore,
-                    image: recipe.image,
-                    instructions: recipe.analyzedInstructions,
+    try {
+
+        const result = (await axios.get(`https://api.spoonacular.com/recipes/complexSearch?apiKey=${YOUR_API_KEY}&addRecipeInformation=true&number=10`)).data.results
+
+        const result2 = await result.map((recipe) => {
+            return {
+                name: recipe.title,
+                ID: recipe.id,
+                diets: recipe.diets.map((diet) => { return { name: diet } }),
+                resumen: recipe.summary,
+                scrore: parseInt(recipe.spoonacularScore),
+                healing: recipe.healthScore,
+                image: recipe.image,
+                instructions: recipe.analyzedInstructions,
+            }
+
+        })
+        const recipebd = await Recipe.findAll({
+            include: {
+                model: Diet,
+                attributes: ["name"],
+                through: {
+                    attributes: []
                 }
+            }
+        })
+        if (!name) {
+            return res.status(200).send(recipebd.concat(result))
+        } else {
 
-            })
-            const recipebd = await Recipe.findAll({
-                include: {
-                    model: Diets,
-                    attributes: ["name"],
-                    through: {
-                        attributes: []
-                    }
-                }
-            })
+            var lowercase = name.toLowerCase();
+            var filter = await result2.filter(recipe => recipe.name.toLowerCase().includes(lowercase))
+            const recipebdfilter = await recipebd.filter(recipe => recipe.name.toLowerCase().includes(lowercase))
 
-            return res.status(200).send(recipebd.concat(result2))
-
-        } catch (err) {
-
-
+            return res.status(200).send(recipebdfilter.concat(filter))
         }
-    } 
-    // else {
-    //     var uppercase = name.toLowerCase();
-    //     try {
-    //         var api = axios.get(await axios.get(`https://api.spoonacular.com/recipes/complexSearch?apiKey=${YOUR_API_KEY}&addRecipeInformation=true&number=1`)).data
-    //         const result2 = await api.results.map((recipe) => {
-    //             return {
-    //                 name: recipe.title,
-    //                 ID: recipe.id,
-    //                 diets: recipe.diets.map((diet) => { return { name: diet } }),
-    //                 resumen: recipe.summary,
-    //                 scrore: parseInt(recipe.spoonacularScore),
-    //                 healing: recipe.healthScore,
-    //                 image: recipe.image,
-    //                 instructions: recipe.analyzedInstructions,
-    //             }
-    //         })
-    //         var filter = await result2.filter(recipe => recipe.title.toUpperCase().includes(uppercase))
-    //         const recipebd = await Recipe.findAll({
-    //             where: {
-    //                 title: { name: uppercase }
-    //             },
-    //             include: {
-    //                 model: Diets,
-    //                 attributes: ["name"],
-    //                 through: {
-    //                     attributes: []
-    //                 }
-    //             }
-    //         })
+    } catch (err) { (next(err)) } {
 
-    //         return res.status(200).send(recipebd.concat(filter))
-    //     } catch (err) {
-    //         (next(err));
-    //     }
-    //}
+
+    }
 }
 
-// function getrecipe(req, res, next) {
-//     let { id } = req.params
-//     let upper = id.toUpperCase()
-//     return Recipe.findByPk(upper)
-//         .then((result) => res.status(200).send(result))
-//         .catch((err) => { next(err); })
-// };
+const getrecipebyId = async (req, res, next) => {
+    let { id } = req.params
+    console.log(id)
+    try {
+        if (id.length > 10) {
+            const bd = await Recipe.findByPk(id)
+            res.status(200).send(bd)
+        } else {
+            const api = (await axios.get(`https://api.spoonacular.com/recipes/${id}/information?apiKey=${YOUR_API_KEY}`)).data
+            res.status(200).json(api)
+        }
+    } catch (err) { (next(err)) } {
+
+    }
+
+};
 
 
 function postRecipe(req, res) {
-    let { name, resumen, score, healing, step } = req.body
+    let { name, resumen, score, healing, step, image } = req.body
     let obj = {
         name: name,
         score: score,
@@ -96,12 +77,17 @@ function postRecipe(req, res) {
         resumen: resumen,
         image: image || "https://www.food4fuel.com/wp-content/uploads/woocommerce-placeholder-600x600.png"
     }
-    return Recipe.create({ ...obj, ID: uuidv4() })
+    if (!title || !summary) return res.send({ error: 500, message: "Necesitas ponerle minimo un name y un summary en el body reina" });
+    Recipe.create({ ...obj, id: uuidv4() })
+        .then((recipeCreated) => {
+            return recipeCreated.addDiet(diet);
+        })
         .then(response => res.send(response))
+        .catch((error) => next(error));
 
 }
 
 
 
 
-module.exports = { getAll, postRecipe };
+module.exports = { getAll, postRecipe, getrecipebyId };
