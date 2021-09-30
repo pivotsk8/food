@@ -5,13 +5,20 @@ const { YOUR_API_KEY } = process.env;
 
 
 const getAll = async (req, res, next) => {
-    let { name } = req.query
-
     try {
+        let { name,
+            order,
+            page,
+        } = req.query
 
-        const result = (await axios.get(`https://api.spoonacular.com/recipes/complexSearch?apiKey=${YOUR_API_KEY}&addRecipeInformation=true&number=10`)).data.results
+        let result2
+        let recipebd
+        let concats = []
+        page=page?page:1
+        const recipexpag=9;
 
-        const result2 = await result.map((recipe) => {
+        const result = (await axios.get(`https://api.spoonacular.com/recipes/complexSearch?apiKey=${YOUR_API_KEY}&addRecipeInformation=true&number=20`)).data.results
+        result2 = await result.map((recipe) => {
             return {
                 name: recipe.title,
                 ID: recipe.id,
@@ -24,30 +31,85 @@ const getAll = async (req, res, next) => {
             }
 
         })
-        const recipebd = await Recipe.findAll({
+        recipebd = await Recipe.findAll({
             include: {
                 model: Diet,
-                attributes: ["name"],
+                attributes: ["nombre"],
                 through: {
                     attributes: []
                 }
             }
         })
-        if (!name) {
-            return res.status(200).send(recipebd.concat(result))
+        //# name
+        if (name && name !== "") {
+            name = name.toLowerCase();
+            result2 = await result2.filter(recipe => recipe.name.toLowerCase().includes(name))
+            recipebd = await recipebd.filter(recipe => recipe.name.toLowerCase().includes(name))
+            concats = recipebd.concat(result2)
+
         } else {
-
-            var lowercase = name.toLowerCase();
-            var filter = await result2.filter(recipe => recipe.name.toLowerCase().includes(lowercase))
-            const recipebdfilter = await recipebd.filter(recipe => recipe.name.toLowerCase().includes(lowercase))
-
-            return res.status(200).send(recipebdfilter.concat(filter))
+            concats = recipebd.concat(result2)
         }
-    } catch (err) { (next(err)) } {
+        //#order
+        if (order === "asc" || !order) {
+            concats = concats.sort((a, b) => { return a.name.toLowerCase().localeCompare(b.name.toLowerCase()) })
+            console.log(concats)
+        } else {
+            concats = concats.sort((a, b) => { return b.name.toLowerCase().localeCompare(a.name.toLowerCase()) })
+            console.log(concats)
 
+        }
+        //#pag
+        let pagine = concats.slice((recipexpag * (page-1)),(recipexpag * (page-1))+recipexpag)
+
+
+        return res.status(200).send(pagine)
+
+    } catch (error) { next(error) } {
 
     }
 }
+
+//     try {
+
+//         const result = (await axios.get(`https://api.spoonacular.com/recipes/complexSearch?apiKey=${YOUR_API_KEY}&addRecipeInformation=true&number=10`)).data.results
+//         const result2 = await result.map((recipe) => {
+//             return {
+//                 name: recipe.title,
+//                 ID: recipe.id,
+//                 diets: recipe.diets.map((diet) => { return { name: diet } }),
+//                 resumen: recipe.summary,
+//                 scrore: parseInt(recipe.spoonacularScore),
+//                 healing: recipe.healthScore,
+//                 image: recipe.image,
+//                 instructions: recipe.analyzedInstructions,
+//             }
+
+//         })
+//         const recipebd = await Recipe.findAll({
+//             include: {
+//                 model: Diet,
+//                 attributes: ["name"],
+//                 through: {
+//                     attributes: []
+//                 }
+//             }
+//         })
+//         if (!name) {
+//             return res.status(200).send(recipebd.concat(result2))
+//         } else {
+
+//             var lowercase = name.toLowerCase();
+//             var filter = await result2.filter(recipe => recipe.name.toLowerCase().includes(lowercase))
+//             const recipebdfilter = await recipebd.filter(recipe => recipe.name.toLowerCase().includes(lowercase))
+
+//             return res.status(200).send(recipebdfilter.concat(filter))
+//         }
+//     } catch (err) { (next(err)) } {
+
+
+//     }
+// }
 
 const getrecipebyId = async (req, res, next) => {
     let { id } = req.params
@@ -68,7 +130,7 @@ const getrecipebyId = async (req, res, next) => {
 
 
 function postRecipe(req, res) {
-    let { name, resumen, score, healing, step, image } = req.body
+    let { name, resumen, score, healing, step, image, diet } = req.body
     let obj = {
         name: name,
         score: score,
@@ -77,7 +139,7 @@ function postRecipe(req, res) {
         resumen: resumen,
         image: image || "https://www.food4fuel.com/wp-content/uploads/woocommerce-placeholder-600x600.png"
     }
-    if (!title || !summary) return res.send({ error: 500, message: "Necesitas ponerle minimo un name y un summary en el body reina" });
+    if (!name || !resumen) return res.send({ error: 500, message: "Necesitas ponerle un nombre y/he resumen" });
     Recipe.create({ ...obj, id: uuidv4() })
         .then((recipeCreated) => {
             return recipeCreated.addDiet(diet);

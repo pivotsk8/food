@@ -19,10 +19,15 @@
 //     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 const server = require('./src/app.js');
 const { conn } = require('./src/db.js');
+const {pregetDiet}= require('./src/controllers/diet.js');
 
 // Syncing all the models at once.
 conn.sync({ force: false }).then(() => {
-  server.listen(3001, () => {
+  server.listen(3001,async () => {
+    console.log('%s cargando dietas');
+    const preload= await pregetDiet()
+    console.log('%s'+preload)
     console.log('%s listening at 3001'); // eslint-disable-line no-console
+    
   });
 });
