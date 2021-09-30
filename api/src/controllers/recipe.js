@@ -9,6 +9,7 @@ const getAll = async (req, res, next) => {
         let { name,
             order,
             page,
+            score,
         } = req.query
 
         let result2
@@ -53,17 +54,23 @@ const getAll = async (req, res, next) => {
         //#order
         if (order === "asc" || !order) {
             concats = concats.sort((a, b) => { return a.name.toLowerCase().localeCompare(b.name.toLowerCase()) })
-            console.log(concats)
+            
         } else {
             concats = concats.sort((a, b) => { return b.name.toLowerCase().localeCompare(a.name.toLowerCase()) })
-            console.log(concats)
+            
 
         }
+        //# order score
+        if(score === "higher"){
+            concats = concats.sort((a, b) => {return a.spoonacularScore>b.spoonacularScore})
+        }else{
+            concats = concats.sort((a, b) => {return b.spoonacularScore<a.spoonacularScore})
+        }
         //#pag
-        let pagine = concats.slice((recipexpag * (page-1)),(recipexpag * (page-1))+recipexpag)
+        //let pagine = concats.slice((recipexpag * (page-1)),(recipexpag * (page-1))+recipexpag)
 
 
-        return res.status(200).send(pagine)
+        return res.status(200).send(concats)
 
     } catch (error) { next(error) } {
 
